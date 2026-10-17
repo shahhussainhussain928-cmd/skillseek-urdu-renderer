@@ -1,0 +1,70 @@
+
+from pathlib import Path
+from PIL import Image, ImageDraw, ImageFont
+import subprocess
+import arabic_reshaper
+from bidi.algorithm import get_display
+
+W, H = 1280, 720
+OUT = Path("output")
+FRAMES = Path("frames")
+OUT.mkdir(exist_ok=True)
+FRAMES.mkdir(exist_ok=True)
+
+FONT_PATH = "fonts/NotoNastaliqUrdu-Regular.ttf"
+
+scenes = [
+    ("سیکھو اسمارٹ، بڑھو آگے!", "اسکل سیک اردو"),
+    ("مصنوعی ذہانت سے نئی مہارتیں سیکھیں", "SkillSeek Urdu"),
+    ("آپ کا ڈیجیٹل سفر آج شروع ہوتا ہے", "سیکھو اسمارٹ، بڑھو آگے!")
+]
+
+def rtl(text):
+    return get_display(arabic_reshaper.reshape(text))
+
+font_big = ImageFont.truetype(FONT_PATH,  sixty := 60)
+font_small = ImageFont.truetype(FONT_PATH, 36)
+
+for i, (heading, subheading) in enumerate(scenes):
+    img = Image.new("RGB", (W, H), "#0f172a")
+    draw = ImageDraw.Draw(img)
+
+    draw.rectangle((0, 0, W, 10), fill="#facc15")
+    draw.rectangle((0, H-10, W, H), fill="#facc15")
+
+    heading = rtl(heading)
+    subheading = rtl(subheading)
+
+    draw.text(
+        (W//2, H//2 - 45),
+        heading,
+        font=font_big,
+        fill="#ffffff",
+        anchor="mm",
+        direction="rtl"
+    )
+    draw.text(
+        (W//2, H//2 + 65),
+        subheading,
+        font=font_small,
+        fill="#facc15",
+        anchor="mm",
+        direction="rtl"
+    )
+
+    img.save(FRAMES / f"scene_{i:02}.png")
+
+# Three scenes, each lasting about 3.33 seconds.
+subprocess.run([
+    "ffmpeg", "-y",
+    "-framerate", "1/3.333",
+    "-i", "frames/scene_%02d.png",
+    "-vf", "scale=1280:720,format=yuv420p",
+    "-t", "10",
+    "-r", "24",
+    "-c:v", "libx264",
+    "-pix_fmt", "yuv420p",
+    "output/skillseek-test.mp4"
+], check=True)
+
+print("Created output/skillseek-test.mp4")
