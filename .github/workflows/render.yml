@@ -33,13 +33,16 @@ jobs:
           pip install Pillow arabic-reshaper python-bidi
 
       
-      - name: Download Urdu font
-        run: |
-          mkdir -p fonts
-          curl -fL "https://raw.githubusercontent.com/google/fonts/main/ofl/notonastaliqurdu/NotoNastaliqUrdu%5Bwght%5D.ttf" -o fonts/NotoNastaliqUrdu-Regular.ttf
-          test -s fonts/NotoNastaliqUrdu-Regular.ttfrun: |
-          mkdir -p fonts
-          curl -fL \
+     - name: Download Urdu font
+       run: mkdir -p fonts && curl -fL "https://raw.githubusercontent.com/google/fonts/main/ofl/notonastaliqurdu/NotoNastaliqUrdu%5Bwght%5D.ttf" -o fonts/NotoNastaliqUrdu-Regular.ttf && test -s fonts/NotoNastaliqUrdu-Regular.ttf
+
+      
+  
+           mkdir -p fonts
+           curl -fL "https://raw.githubusercontent.com/google/fonts/main/ofl/notonastaliqurdu/NotoNastaliqUrdu%5Bwght%5D.ttf" -o fonts/NotoNastaliqUrdu-Regular.ttf
+           test -s fonts/NotoNastaliqUrdu-Regular.ttfrun: |
+           mkdir -p fonts
+           curl -fL \
             "https://raw.githubusercontent.com/google/fonts/main/ofl/notonastaliqurdu/NotoNastaliqUrdu%5Bwght%5D.ttf" \
             -o fonts/NotoNastaliqUrdu-Regular.ttf
           test -s fonts/NotoNastaliqUrdu-Regular.ttf
