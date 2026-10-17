@@ -1,0 +1,49 @@
+
+name: SkillSeek Fresh Video Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-video:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get repository files
+        uses: actions/checkout@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Install Python libraries
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install Pillow arabic-reshaper python-bidi
+
+      - name: Check new Python file
+        run: |
+          pwd
+          git rev-parse --short HEAD
+          test -f skillseek.py
+          python -m py_compile skillseek.py
+
+      - name: Render the video
+        run: python skillseek.py
+
+      - name: Upload video artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: skillseek-fresh-test
+          path: skillseek_output/skillseek-test.mp4
+          if-no-files-found: error
+          retention-days: 7
