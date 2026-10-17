@@ -40,8 +40,22 @@ jobs:
             -o fonts/NotoNastaliqUrdu-Regular.ttf
           test -s fonts/NotoNastaliqUrdu-Regular.ttf
 
-      - name: Render test video
-        run: python render.py
+            - name: Check files and render video
+          run: |
+          echo "Current directory:"
+          pwd
+          echo "Current commit:"
+          git rev-parse --short HEAD
+          echo "Tracked files:"
+          git ls-files
+          echo "Searching for render.py:"
+          find . -name render.py -type f
+          test -f render.py || {
+            echo "ERROR: render.py is missing from this commit"
+            exit 1
+          }
+          python ./render.py
+  
 
       - name: Save rendered video
         uses: actions/upload-artifact@v4
