@@ -1,73 +1,95 @@
-name: SkillSeek Urdu Video Renderer
+from pathlib import Path
+from PIL import Image, ImageDraw, ImageFont
+import subprocess
+import arabic_reshaper
+from bidi.algorithm import get_display
 
-on:
-  workflow_dispatch:
-  push:
-    paths:
-      - "render.py"
-      - ".github/workflows/render.yml"
+# Video settings
+WIDTH = 1280
+HEIGHT = 720
+FPS = 24
+DURATION = 10
 
-permissions:
-  contents: read
+ROOT = Path(__file__).resolve().parent
+FRAMES = ROOT / "frames"
+OUTPUT = ROOT / "output"
+FONT_PATH = ROOT / "fonts" / "NotoNastaliqUrdu-Regular.ttf"
+VIDEO_PATH = OUTPUT / "skillseek-test.mp4"
 
-jobs:
-  render:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Get project files
-        uses: actions/checkout@v4
+FRAMES.mkdir(exist_ok=True)
+OUTPUT.mkdir(exist_ok=True)
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+# Urdu text scenes
+SCENES = [
+    ("سیکھو اسمارٹ، بڑھو آگے!", "اسکل سیک اردو"),
+    ("مصنوعی ذہانت سے نئی مہارتیں سیکھیں", "SkillSeek Urdu"),
+    ("آپ کا ڈیجیٹل سفر آج شروع ہوتا ہے", "سیکھو اسمارٹ، بڑھو آگے!")
+]
 
-      - name: Install FFmpeg
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
+def shape_urdu(text):
+    reshaped = arabic_reshaper.reshape(text)
+    return get_display(reshaped)
 
-      - name: Install Python libraries
-        run: |
-          python -m pip install --upgrade pip
-          pip install Pillow arabic-reshaper python-bidi
+def main():
+    if not FONT_PATH.exists():
+        raise FileNotFoundError(
+            f"Urdu font not found: {FONT_PATH}"
+        )
 
-      
-     - name: Download Urdu font
-       run: mkdir -p fonts && curl -fL "https://raw.githubusercontent.com/google/fonts/main/ofl/notonastaliqurdu/NotoNastaliqUrdu%5Bwght%5D.ttf" -o fonts/NotoNastaliqUrdu-Regular.ttf && test -s fonts/NotoNastaliqUrdu-Regular.ttf
+    font_heading = ImageFont.truetype(str(FONT_PATH), 60)
+    font_subheading = ImageFont.truetype(str(FONT_PATH), 36)
 
-      
-  
-           mkdir -p fonts
-           curl -fL "https://raw.githubusercontent.com/google/fonts/main/ofl/notonastaliqurdu/NotoNastaliqUrdu%5Bwght%5D.ttf" -o fonts/NotoNastaliqUrdu-Regular.ttf
-           test -s fonts/NotoNastaliqUrdu-Regular.ttfrun: |
-           mkdir -p fonts
-           curl -fL \
-            "https://raw.githubusercontent.com/google/fonts/main/ofl/notonastaliqurdu/NotoNastaliqUrdu%5Bwght%5D.ttf" \
-            -o fonts/NotoNastaliqUrdu-Regular.ttf
-          test -s fonts/NotoNastaliqUrdu-Regular.ttf
+    # Create video frames
+    for i, (heading, subheading) in enumerate(SCENES):
+        image = Image.new("RGB", (WIDTH, HEIGHT), "#0f172a")
+        draw = ImageDraw.Draw(image)
 
-            - name: Check files and render video
-          run: |
-          echo "Current directory:"
-          pwd
-          echo "Current commit:"
-          git rev-parse --short HEAD
-          echo "Tracked files:"
-          git ls-files
-          echo "Searching for render.py:"
-          find . -name render.py -type f
-          test -f render.py || {
-            echo "ERROR: render.py is missing from this commit"
-            exit 1
-          }
-          python ./render.py
-  
+        # SkillSeek Urdu branding
+        draw.rectangle((0, 0, WIDTH, 12), fill="#facc15")
+        draw.rectangle(
+            (0, HEIGHT - 12, WIDTH, HEIGHT),
+            fill="#facc15"
+        )
 
-      - name: Save rendered video
-        uses: actions/upload-artifact@v4
-        with:
-          name: skillseek-urdu-test
-          path: output/skillseek-test.mp4
-          if-no-files-found: error
-          retention-days: 7
+        draw.text(
+            (WIDTH // 2, HEIGHT // 2 - 45),
+            shape_urdu(heading),
+            font=font_heading,
+            fill="#ffffff",
+            anchor="mm",
+            direction="rtl"
+        )
+
+        draw.text(
+            (WIDTH // 2, HEIGHT // 2 + 65),
+            shape_urdu(subheading),
+            font=font_subheading,
+            fill="#facc15",
+            anchor="mm",
+            direction="rtl"
+        )
+
+        image.save(FRAMES / f"scene_{i:02d}.png")
+
+    # Render the MP4 using FFmpeg
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-framerate", "1",
+            "-i", str(FRAMES / "scene_%02d.png"),
+            "-vf", f"scale={WIDTH}:{HEIGHT},format=yuv420p",
+            "-t", str(DURATION),
+            "-r", str(FPS),
+            "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            str(VIDEO_PATH)
+        ],
+        check=True
+    )
+
+    print(f"SUCCESS: Video created at {VIDEO_PATH}")
+
+if __name__ == "__main__":
+    main()
