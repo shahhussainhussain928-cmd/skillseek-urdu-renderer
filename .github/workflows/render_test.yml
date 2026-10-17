@@ -1,0 +1,93 @@
+name: Urdu Video Render Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Install Node.js & Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg chromium-browser
+          npm install puppeteer
+
+      - name: Create Test HTML
+        run: |
+          cat << 'EOF' > template.html
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="UTF-8">
+            <style>
+              @import url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@700&display=swap');
+              body {
+                margin: 0;
+                width: 1080px;
+                height: 1920px;
+                background: #0f172a;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                color: #ffffff;
+                font-family: 'Noto Nastaliq Urdu', serif;
+                direction: rtl;
+                text-align: center;
+              }
+              .tagline {
+                font-size: 55px;
+                color: #38bdf8;
+                margin-bottom: 40px;
+              }
+              .text {
+                font-size: 70px;
+                line-height: 2;
+                padding: 0 50px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="tagline">SkillSeek Urdu</div>
+            <div class="text">سیکھو سمارٹ، بڑھو آگے!</div>
+          </body>
+          </html>
+          EOF
+
+      - name: Render Frames & Create MP4
+        run: |
+          node -e "
+          const puppeteer = require('puppeteer');
+          const { execSync } = require('child_process');
+          const fs = require('fs');
+
+          (async () => {
+            const browser = await puppeteer.launch({
+              executablePath: '/usr/bin/chromium-browser',
+              args: ['--no-sandbox', '--disable-setuid-sandbox']
+            });
+            const page = await browser.newPage();
+            await page.setViewport({ width: 1080, height: 1920 });
+            await page.goto('file://' + process.cwd() + '/template.html');
+            
+            if (!fs.existsSync('frames')) fs.mkdirSync('frames');
+
+            for (let i = 0; i < 30; i++) {
+              await page.screenshot({ path: \`frames/frame_\${String(i).padStart(3, '0')}.png\` });
+            }
+            await browser.close();
+
+            execSync('ffmpeg -framerate 30 -i frames/frame_%03d.png -c:v libx264 -pix_fmt yuv420p output_test.mp4');
+          })();
+          "
+
+      - name: Upload Test Video Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: urdu-test-video
+          path: output_test.mp4
