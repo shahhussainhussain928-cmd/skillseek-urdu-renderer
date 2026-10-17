@@ -11,17 +11,15 @@ ROOT = Path(__file__).resolve().parent
 OUT = ROOT / "skillseek_output"
 FRAMES = OUT / "frames"
 FONT_DIR = OUT / "fonts"
+FONT = FONT_DIR / "NotoNastaliqUrdu-Regular.ttf"
+VIDEO = OUT / "skillseek-test.mp4"
 
 WIDTH, HEIGHT = 1280, 720
 FPS = 24
-DURATION = 10
 
-OUT.mkdir(exist_ok=True)
-FRAMES.mkdir(exist_ok=True)
-FONT_DIR.mkdir(exist_ok=True)
-
-FONT = FONT_DIR / "urdu.ttf"
-VIDEO = OUT / "skillseek-test.mp4"
+OUT.mkdir(parents=True, exist_ok=True)
+FRAMES.mkdir(parents=True, exist_ok=True)
+FONT_DIR.mkdir(parents=True, exist_ok=True)
 
 FONT_URL = (
     "https://raw.githubusercontent.com/google/fonts/main/"
@@ -31,96 +29,104 @@ FONT_URL = (
 SCENES = [
     ("سیکھو اسمارٹ، بڑھو آگے!", "اسکل سیک اردو"),
     ("مصنوعی ذہانت سے نئی مہارتیں سیکھیں", "SkillSeek Urdu"),
-    ("آپ کا ڈیجیٹل سفر آج شروع ہوتا ہے", "آج ہی سیکھنا شروع کریں")
+    ("آپ کا ڈیجیٹل سفر آج شروع ہوتا ہے", "آج ہی سیکھنا شروع کریں"),
 ]
 
 
-def urdu(text):
+def shape_urdu(text):
     return get_display(arabic_reshaper.reshape(text))
 
 
 def main():
-    print("Starting SkillSeek Urdu renderer...")
-
-    if not FONT.exists():
-        print("Downloading Urdu font...")
-        urllib.request.urlretrieve(FONT_URL, FONT)
+    print("Downloading a fresh Urdu font...")
+    request = urllib.request.Request(
+        FONT_URL,
+        headers={"User-Agent": "SkillSeekUrdu/1.0"}
+    )
+    with urllib.request.urlopen(request, timeout=60) as response:
+        FONT.write_bytes(response.read())
 
     if FONT.stat().st_size < 10000:
-        raise RuntimeError("The Urdu font download appears incomplete.")
+        raise RuntimeError("Font download is incomplete.")
 
+    print(f"Font downloaded: {FONT.stat().st_size} bytes")
+
+    # Verify that Pillow can open the font.
     heading_font = ImageFont.truetype(str(FONT), 58)
-    sub_font = ImageFont.truetype(str(FONT), 34)
+    subtitle_font = ImageFont.truetype(str(FONT), 36)
+    brand_font = ImageFont.truetype(str(FONT), 24)
 
-    for i, (heading, subtitle) in enumerate(SCENES):
-        img = Image.new("RGB", (WIDTH, HEIGHT), "#0f172a")
-        draw = ImageDraw.Draw(img)
+    for index, (heading, subtitle) in enumerate(SCENES):
+        image = Image.new("RGB", (WIDTH, HEIGHT), "#0f172a")
+        draw = ImageDraw.Draw(image)
 
         draw.rectangle((0, 0, WIDTH, 12), fill="#facc15")
-        draw.rectangle(
-            (0, HEIGHT - 12, WIDTH, HEIGHT),
-            fill="#facc15"
-        )
+        draw.rectangle((0, HEIGHT - 12, WIDTH, HEIGHT), fill="#facc15")
 
         draw.text(
             (WIDTH // 2, 270),
-            urdu(heading),
+            shape_urdu(heading),
             font=heading_font,
-            fill="white",
+            fill="#ffffff",
             anchor="mm",
-            direction="rtl"
+            direction="rtl",
         )
 
         draw.text(
             (WIDTH // 2, 370),
-            urdu(subtitle),
-            font=sub_font,
+            shape_urdu(subtitle),
+            font=subtitle_font,
             fill="#facc15",
             anchor="mm",
-            direction="rtl"
+            direction="rtl",
         )
 
         draw.text(
             (WIDTH // 2, 650),
             "SKILLSEEK URDU",
-            font=ImageFont.truetype(str(FONT), 24),
+            font=brand_font,
             fill="#cbd5e1",
-            anchor="mm"
+            anchor="mm",
         )
 
-        img.save(FRAMES / f"frame_{i:03d}.png")
-        print(f"Created scene {i + 1}/{len(SCENES)}")
+        image.save(FRAMES / f"frame_{index:03d}.png")
+        print(f"Created scene {index + 1}")
 
-    print("Rendering MP4...")
+    # Hold each scene for a few seconds, then join them.
+    inputs = []
+    filters = []
+
+    durations = [3.34, 3.33, 3.33]
+
+    for index, duration in enumerate(durations):
+        inputs.extend([
+            "-loop", "1",
+            "-framerate", "1",
+            "-t", str(duration),
+            "-i", str(FRAMES / f"frame_{index:03d}.png"),
+        ])
+        filters.append(
+            f"[{index}:v]fps={FPS},"
+            f"trim=duration={duration},"
+            f"setpts=PTS-STARTPTS,"
+            f"scale={WIDTH}:{HEIGHT},format=yuv420p[v{index}]"
+        )
+
+    filters.append("[v0][v1][v2]concat=n=3:v=1:a=0[outv]")
+
     subprocess.run(
         [
             "ffmpeg", "-y",
-            "-loop", "1",
-            "-framerate", "1",
-            "-i", str(FRAMES / "frame_000.png"),
-            "-loop", "1",
-            "-framerate", "1",
-            "-i", str(FRAMES / "frame_001.png"),
-            "-loop", "1",
-            "-framerate", "1",
-            "-i", str(FRAMES / "frame_002.png"),
-            "-filter_complex",
-            (
-                "[0:v]trim=duration=3.34,setpts=PTS-STARTPTS[a];"
-                "[1:v]trim=duration=3.33,setpts=PTS-STARTPTS[b];"
-                "[2:v]trim=duration=3.33,setpts=PTS-STARTPTS[c];"
-                "[a][b][c]concat=n=3:v=1:a=0,"
-                f"fps={FPS},scale={WIDTH}:{HEIGHT},"
-                "format=yuv420p[v]"
-            ),
-            "-map", "[v]",
-            "-t", str(DURATION),
+            *inputs,
+            "-filter_complex", ";".join(filters),
+            "-map", "[outv]",
+            "-t", "10",
             "-c:v", "libx264",
             "-pix_fmt", "yuv420p",
             "-movflags", "+faststart",
-            str(VIDEO)
+            str(VIDEO),
         ],
-        check=True
+        check=True,
     )
 
     print(f"SUCCESS: {VIDEO}")
