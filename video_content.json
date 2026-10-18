@@ -1,0 +1,79 @@
+{
+  "channel": "SkillSeek Urdu",
+  "title": "5 Free AI Tools Everyone Should Know",
+  "language": "ur",
+  "duration_seconds": 300,
+  "resolution": "1280x720",
+  "brand": {
+    "background": "#0f172a",
+    "accent": "#facc15",
+    "text": "#ffffff"
+  },
+  "music": {
+    "enabled": true,
+    "source": "ADD_LICENSED_MUSIC_FILE_LATER",
+    "narration": false
+  },
+  "scenes": [
+    {
+      "start": 0,
+      "duration": 30,
+      "heading": "5 مفت AI ٹولز!",
+      "subtitle": "سیکھو اسمارٹ، بڑھو آگے!"
+    },
+    {
+      "start": 30,
+      "duration": 30,
+      "heading": "نمبر 1 — ChatGPT",
+      "subtitle": "لکھنے، سیکھنے اور نئے آئیڈیاز کے لیے"
+    },
+    {
+      "start": 60,
+      "duration": 30,
+      "heading": "نمبر 2 — Google Gemini",
+      "subtitle": "سوالات پوچھیں اور نئے موضوعات سیکھیں"
+    },
+    {
+      "start": 90,
+      "duration": 30,
+      "heading": "نمبر 3 — Microsoft Copilot",
+      "subtitle": "تحریر اور منصوبہ بندی میں مدد"
+    },
+    {
+      "start": 120,
+      "duration": 30,
+      "heading": "نمبر 4 — Canva",
+      "subtitle": "تھمب نیلز اور خوبصورت ڈیزائن"
+    },
+    {
+      "start": 150,
+      "duration": 30,
+      "heading": "نمبر 5 — Adobe Express",
+      "subtitle": "گرافکس اور ویڈیو ڈیزائن"
+    },
+    {
+      "start": 180,
+      "duration": 30,
+      "heading": "اپنی ضرورت کے مطابق ٹول چنیں",
+      "subtitle": "ہر ٹول کا اپنا فائدہ ہے"
+    },
+    {
+      "start": 210,
+      "duration": 30,
+      "heading": "AI کے ساتھ بہتر کام کریں",
+      "subtitle": "سوال پوچھیں، جواب چیک کریں"
+    },
+    {
+      "start": 240,
+      "duration": 30,
+      "heading": "آن لائن محفوظ رہیں",
+      "subtitle": "ذاتی معلومات کی حفاظت کریں"
+    },
+    {
+      "start": 270,
+      "duration": 30,
+      "heading": "SkillSeek Urdu کو سبسکرائب کریں!",
+      "subtitle": "سیکھو اسمارٹ، بڑھو آگے!"
+    }
+  ]
+}
