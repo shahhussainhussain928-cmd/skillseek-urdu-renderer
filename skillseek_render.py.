@@ -1,1 +1,217 @@
 
+from pathlib import Path
+import json
+import subprocess
+import urllib.request
+import sys
+
+from PIL import Image, ImageDraw, ImageFont
+import arabic_reshaper
+from bidi.algorithm import get_display
+
+ROOT = Path(__file__).resolve().parent
+PLAN = ROOT / "video_content.json"
+WORK = ROOT / "skillseek_render_output"
+FRAMES = WORK / "frames"
+FONT_DIR = WORK / "fonts"
+FONT = FONT_DIR / "NotoNastaliqUrdu.ttf"
+VIDEO = WORK / "skillseek-urdu-first-video.mp4"
+MUSIC = ROOT / "music.mp3"
+
+WIDTH, HEIGHT = 1280, 720
+FPS = 24
+
+NAVY = "#0f172a"
+YELLOW = "#facc15"
+WHITE = "#ffffff"
+MUTED = "#cbd5e1"
+
+FONT_URL = (
+    "https://raw.githubusercontent.com/google/fonts/main/"
+    "ofl/notonastaliqurdu/NotoNastaliqUrdu%5Bwght%5D.ttf"
+)
+
+
+def urdu(text):
+    return get_display(arabic_reshaper.reshape(str(text)))
+
+
+def run(command):
+    subprocess.run(command, check=True)
+
+
+def main():
+    if not PLAN.exists():
+        sys.exit("ERROR: video_content.json was not found.")
+
+    data = json.loads(PLAN.read_text(encoding="utf-8"))
+    scenes = data.get("scenes", [])
+
+    if not scenes:
+        sys.exit("ERROR: No scenes were found in video_content.json.")
+
+    total_seconds = int(data.get("duration_seconds", 300))
+    WORK.mkdir(parents=True, exist_ok=True)
+    FRAMES.mkdir(parents=True, exist_ok=True)
+    FONT_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Download the font on the cloud runner.
+    if not FONT.exists() or FONT.stat().st_size < 10000:
+        print("Downloading Urdu font...")
+        request = urllib.request.Request(
+            FONT_URL,
+            headers={"User-Agent": "SkillSeekUrdu/1.0"}
+        )
+        with urllib.request.urlopen(request, timeout=60) as response:
+            FONT.write_bytes(response.read())
+
+    heading_font = ImageFont.truetype(str(FONT), 58)
+    subtitle_font = ImageFont.truetype(str(FONT), 36)
+    brand_font = ImageFont.truetype(str(FONT), 25)
+
+    # Test the Urdu glyphs before creating the video.
+    test_image = Image.new("RGB", (800, 200), NAVY)
+    test_draw = ImageDraw.Draw(test_image)
+    test_draw.text(
+        (400, 100),
+        urdu("اردو ٹیسٹ"),
+        font=heading_font,
+        fill=WHITE,
+        anchor="mm",
+        direction="rtl",
+    )
+    test_image.save(WORK / "urdu-font-test.png")
+    print("Created Urdu font test image.")
+
+    # Create one high-quality scene image for each scene.
+    for i, scene in enumerate(scenes):
+        img = Image.new("RGB", (WIDTH, HEIGHT), NAVY)
+        draw = ImageDraw.Draw(img)
+
+        draw.rectangle((0, 0, WIDTH, 12), fill=YELLOW)
+        draw.rectangle((0, HEIGHT - 12, WIDTH, HEIGHT), fill=YELLOW)
+
+        # Decorative circles for a technology-inspired look.
+        draw.ellipse(
+            (WIDTH - 210, 65, WIDTH - 80, 195),
+            outline="#334155",
+            width=4,
+        )
+        draw.ellipse(
+            (65, HEIGHT - 195, 195, HEIGHT - 65),
+            outline="#334155",
+            width=4,
+        )
+
+        heading = scene.get("heading", "")
+        subtitle = scene.get("subtitle", "")
+
+        draw.text(
+            (WIDTH // 2, 275),
+            urdu(heading),
+            font=heading_font,
+            fill=WHITE,
+            anchor="mm",
+            direction="rtl",
+        )
+
+        draw.text(
+            (WIDTH // 2, 390),
+            urdu(subtitle),
+            font=subtitle_font,
+            fill=YELLOW,
+            anchor="mm",
+            direction="rtl",
+        )
+
+        draw.text(
+            (WIDTH // 2, 640),
+            "SKILLSEEK URDU",
+            font=brand_font,
+            fill=MUTED,
+            anchor="mm",
+        )
+
+        frame_path = FRAMES / f"scene_{i:03d}.png"
+        img.save(frame_path)
+        print(f"Created scene {i + 1}/{len(scenes)}")
+
+    # Build a video from scene images with gentle zoom animation.
+    inputs = []
+    filters = []
+    durations = []
+
+    for i, scene in enumerate(scenes):
+        start = float(scene.get("start", 0))
+        next_start = (
+            float(scenes[i + 1]["start"])
+            if i + 1 < len(scenes)
+            else float(total_seconds)
+        )
+        duration = max(1.0, next_start - start)
+        durations.append(duration)
+
+        inputs.extend([
+            "-loop", "1",
+            "-framerate", "1",
+            "-t", str(duration),
+            "-i", str(FRAMES / f"scene_{i:03d}.png"),
+        ])
+
+        # Slow zoom for motion; reset timestamps per scene.
+        filters.append(
+            f"[{i}:v]fps={FPS},"
+            f"scale={WIDTH + 80}:{HEIGHT + 45},"
+            f"zoompan=z='min(1.04,1+0.0005*on)':"
+            f"x='iw/2-(iw/zoom/2)':"
+            f"y='ih/2-(ih/zoom/2)':"
+            f"d=1:s={WIDTH}x{HEIGHT}:fps={FPS},"
+            f"trim=duration={duration},"
+            f"setpts=PTS-STARTPTS,format=yuv420p[v{i}]"
+        )
+
+    concat_inputs = "".join(f"[v{i}]" for i in range(len(scenes)))
+    filters.append(
+        f"{concat_inputs}concat=n={len(scenes)}:v=1:a=0[outv]"
+    )
+
+    command = [
+        "ffmpeg", "-y",
+        *inputs,
+        "-filter_complex", ";".join(filters),
+        "-map", "[outv]",
+    ]
+
+    # Add background music only if you upload a licensed music.mp3.
+    if MUSIC.exists():
+        command.extend([
+            "-stream_loop", "-1",
+            "-i", str(MUSIC),
+            "-map", f"{len(scenes)}:a",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-af", "volume=0.18,afade=t=in:st=0:d=2,"
+                   f"afade=t=out:st={max(0, total_seconds - 3)}:d=3",
+        ])
+    else:
+        print("No music.mp3 found; rendering without audio for now.")
+
+    command.extend([
+        "-t", str(total_seconds),
+        "-c:v", "libx264",
+        "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart",
+        str(VIDEO),
+    ])
+
+    print("Rendering video. This may take several minutes...")
+    run(command)
+
+    print(f"SUCCESS: {VIDEO}")
+    print(f"Duration requested: {total_seconds} seconds")
+    print("Check urdu-font-test.png before publishing.")
+
+
+if __name__ == "__main__":
+    main()
+
